@@ -1,4 +1,5 @@
 import requests
+import os
 import random
 import warnings
 import evaluate
@@ -31,6 +32,9 @@ from adapters.composition import Fuse
 # 1.) Laden der Daten
 
 #Statische Variablen
+BASE_ADAPTER_DIR = "/netscratch/dtrautner/studienarbeit/results"
+# BASE_ADAPTER_DIR = "./"  # (Alternative: lokales Verzeichnis)
+
 SETH_TRAIN_URL = 'https://raw.githubusercontent.com/Erechtheus/mutationCorpora/master/corpora/IOB/SETH-train.iob'
 SETH_TEST_URL = 'https://raw.githubusercontent.com/Erechtheus/mutationCorpora/master/corpora/IOB/SETH-test.iob'
 
@@ -589,12 +593,12 @@ def train_with_adapter(dataset_name, tokenized_data):
     model.train_adapter(adapter_name)
 
     training_args = TrainingArguments(
-        output_dir=f"./results/{dataset_name}",
+        output_dir=os.path.join(BASE_ADAPTER_DIR,"results",dataset_name),
         eval_strategy="epoch",
         learning_rate=2e-4,
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
-        num_train_epochs=5,
+        num_train_epochs=1,
         weight_decay=0.01,
         save_total_limit=2,
         logging_dir=f"./logs/{dataset_name}",
@@ -616,9 +620,12 @@ def train_with_adapter(dataset_name, tokenized_data):
 
     trainer.train()
     trainer.evaluate()
-    
-    model.save_adapter(f"./adapters/{adapter_name}", adapter_name)
-    model.save_head(f"./heads/head_{adapter_name}", f"head_{adapter_name}")
+
+    adapter_path = os.path.join(BASE_ADAPTER_DIR,"adapters",adapter_name)
+    head_path = os.path.join(BASE_ADAPTER_DIR,"heads", f"head_{adapter_name}")
+
+    model.save_adapter(adapter_path, adapter_name)
+    model.save_head(head_path, f"head_{adapter_name}")
     trained_adapters.append(adapter_name)
     adapter_trainers[adapter_name] = trainer
     print(model.adapter_summary())
@@ -843,12 +850,12 @@ cross_domain_train = concatenate_datasets([tokenized_datasets[ds]["train"] for d
 cross_domain_eval = concatenate_datasets([tokenized_datasets[ds]["dev"] for ds in tokenized_datasets.keys()])
 
 fusion_training_args = TrainingArguments(
-    output_dir="./results/fusion",
+    output_dir=os.path.join(BASE_ADAPTER_DIR,"results","fusion"),
     evaluation_strategy="epoch",
     learning_rate=2e-5,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
-    num_train_epochs=3,
+    num_train_epochs=1,
     weight_decay=0.01,
     logging_dir="./logs/fusion",
     logging_strategy="epoch",
@@ -867,7 +874,9 @@ fusion_trainer = AdapterTrainer(
 
 fusion_trainer.train() 
 fusion_trainer.evaluate()
-model.save_adapter(f"./adapters/fusion", "fusion")
+
+fusion_path = os.path.join(BASE_ADAPTER_DIR,"adapters","fusion")
+model.save_adapter_fusion(fusion_path, adapter_setup)
 #plot_training_progress(fusion_trainer) 
 
 print("\nEvaluierung des fusionierten Modells...")
