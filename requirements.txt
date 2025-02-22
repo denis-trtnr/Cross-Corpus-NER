@@ -1,0 +1,12 @@
+requests
+random
+evaluate
+matplotlib
+seaborn
+numpy
+pandas
+tabulate
+scikit-learn
+datasets
+transformers
+adapters
