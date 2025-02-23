@@ -1,0 +1,20 @@
+method: bayes  # Can be 'grid', 'random', or 'bayes'
+metric:
+  name: eval_f1
+  goal: maximize
+
+parameters:
+  learning_rate:
+    values: [2e-5, 2e-4]
+  batch_size:
+    values: [8]
+  num_train_epochs:
+    values: [3, 5]
+
+run_cap: 50
+program: train.py  # <-- Explicitly set the script to run
+
+command:
+  - ${env}
+  - python
+  - ${program}

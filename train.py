@@ -3,6 +3,7 @@ import os
 import random
 import warnings
 import evaluate
+import wandb
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
@@ -13,6 +14,7 @@ from collections import Counter
 from sklearn.metrics import confusion_matrix
 from datasets import Dataset, DatasetDict, concatenate_datasets
 from collections import Counter
+from datetime import datetime
 from matplotlib import cm
 from transformers import (
     DistilBertTokenizerFast,
@@ -49,6 +51,8 @@ AMIA_TEST_URL = 'https://raw.githubusercontent.com/Erechtheus/mutationCorpora/ma
 
 TMVAR_TRAIN_URL = 'https://raw.githubusercontent.com/Erechtheus/mutationCorpora/master/corpora/IOB/tmvar-train.iob'
 TMVAR_TEST_URL = 'https://raw.githubusercontent.com/Erechtheus/mutationCorpora/master/corpora/IOB/tmvar-test.iob'
+
+START_TIME = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # Funktion, um die Daten von von Github herunterzuladen
 def download_data(url, filename):
@@ -390,7 +394,7 @@ def prepare_data(documents, corpus_name):
 # Wende prepare_data auf die train, dev und test-Splits an
 processed_datasets = []
 
-for data in split_datasets[:3]:
+for data in split_datasets:
     print(f"Verarbeite {data['name']}...")
 
     # Trainingsdaten vorbereiten
@@ -579,6 +583,16 @@ results_summary = []
 def train_with_adapter(dataset_name, tokenized_data):
     # Konfiguriere den Adapter
     
+    wandb.init(
+        project="CrossCorpusNER",   # Dein Projektname in W&B
+        name=f"Train_{dataset_name}",  # z.B. Laufname = Name des Datensatzes
+        tags=[f"timestamp_{START_TIME}", dataset_name],
+    )
+
+    lr = wandb.config.learning_rate if hasattr(wandb.config, "learning_rate") else 2e-4
+    batch_size = wandb.config.batch_size if hasattr(wandb.config, "batch_size") else 8
+    epochs = wandb.config.num_train_epochs if hasattr(wandb.config, "num_train_epochs") else 1
+
     adapter_config = AdapterConfig.load(
         "houlsby",  # Standard-Adapter-Konfiguration, kann angepasst werden
     )
@@ -595,16 +609,17 @@ def train_with_adapter(dataset_name, tokenized_data):
     training_args = TrainingArguments(
         output_dir=os.path.join(BASE_ADAPTER_DIR,"results",dataset_name),
         eval_strategy="epoch",
-        learning_rate=2e-4,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
-        num_train_epochs=1,
+        learning_rate=lr,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
+        num_train_epochs=epochs,
         weight_decay=0.01,
         save_total_limit=2,
         logging_dir=f"./logs/{dataset_name}",
         logging_strategy="epoch",
         # The next line is important to ensure the dataset labels are properly passed to the model
         remove_unused_columns=False,
+        report_to="wandb",
     )
 
     trainer = AdapterTrainer(
@@ -689,7 +704,7 @@ def train_with_adapter(dataset_name, tokenized_data):
         plt.title(f'Confusion Matrix for Adapter {adapter_name} tested on {test_dataset_name}')
         plt.show()
         """
-    
+    wandb.finish()
     model.set_active_adapters(None)
 
 
@@ -704,7 +719,7 @@ def activate_adapter(adapter_name):
 
 # Evaluation und Zusammenfassung aller Modelle
 #results_summary = []
-
+"""
 def evaluate_all_adapters():
     for adapter_name in trained_adapters:
         print(f"\nEvaluierung des Adapters {adapter_name}...")
@@ -764,7 +779,6 @@ def evaluate_all_adapters():
             ])
 
             # Visualisiere die Confusion-Matrix
-            """
             plt.figure(figsize=(12, 10))
             sns.heatmap(cm_percentage, annot=annotations, fmt='', 
                         xticklabels=relevant_classes, yticklabels=relevant_classes, cmap='Blues')
@@ -773,11 +787,10 @@ def evaluate_all_adapters():
             plt.ylabel('True')
             plt.title(f'Confusion Matrix for Adapter {adapter_name} tested on {test_dataset_name}')
             plt.show()
-            """
 
         print(model.adapter_summary())
         model.set_active_adapters(None)  # Deaktiviert den aktiven Adapter
-
+"""
 # Ergebnisse zusammenfassen und anzeigen
 def summarize_results():
     results_df = pd.DataFrame(results_summary)
@@ -839,6 +852,17 @@ def plot_training_progress(trainer):
 adapter_setup = Fuse(*trained_adapters)
 model.add_adapter_fusion(adapter_setup)
 
+# W&B setup
+wandb.init(
+        project="CrossCorpusNER",   # Dein Projektname in W&B
+        name=f"Fusion",  # z.B. Laufname = Name des Datensatzes
+        tags=[f"timestamp_{START_TIME}", "Fusion"],
+    )
+
+lr_fusion = wandb.config.learning_rate if hasattr(wandb.config, "learning_rate") else 2e-4
+batch_size_fusion = wandb.config.batch_size if hasattr(wandb.config, "batch_size") else 8
+epochs_fusion = wandb.config.num_train_epochs if hasattr(wandb.config, "num_train_epochs") else 1
+
 # Unfreeze and activate fusion setup
 model.train_adapter_fusion(adapter_setup)
 
@@ -852,15 +876,16 @@ cross_domain_eval = concatenate_datasets([tokenized_datasets[ds]["dev"] for ds i
 fusion_training_args = TrainingArguments(
     output_dir=os.path.join(BASE_ADAPTER_DIR,"results","fusion"),
     evaluation_strategy="epoch",
-    learning_rate=2e-5,
-    per_device_train_batch_size=16,
-    per_device_eval_batch_size=16,
-    num_train_epochs=1,
+    learning_rate=lr_fusion,
+    per_device_train_batch_size=batch_size_fusion,
+    per_device_eval_batch_size=batch_size_fusion,
+    num_train_epochs=epochs_fusion,
     weight_decay=0.01,
     logging_dir="./logs/fusion",
     logging_strategy="epoch",
     save_strategy="epoch",
     load_best_model_at_end=True,
+    report_to="wandb",
 )
 
 fusion_trainer = AdapterTrainer(
@@ -926,6 +951,7 @@ for test_dataset_name, datasets in tokenized_datasets.items():
     plt.title(f'Confusion Matrix for Fusion Model tested on {test_dataset_name}')
     plt.show()
     """
+wandb.finish()
 
 results_df = pd.DataFrame(results_summary)
 print("\nZusammenfassung der Ergebnisse:")
