@@ -416,7 +416,7 @@ for data in split_datasets:
 
 
 # Tokenizer initialisieren
-pretrained_model = "distilbert-base-uncased" #earlier bert-base-uncased
+pretrained_model = "distilbert-base-uncased" #earlier bert-base-uncased UNBEDINGT pubMEDBERT!!!
 #tokenizer = DistilBertTokenizerFast.from_pretrained(pretrained_model, clean_up_tokenization_spaces=True)
 config = AutoConfig.from_pretrained(pretrained_model, num_labels=len(LABEL_TO_ID), label2id=LABEL_TO_ID, id2label=ID_TO_LABEL)
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
@@ -555,7 +555,14 @@ def calculate_metrics(predictions_and_labels):
         "precision": overall_metrics["overall_precision"],
         "recall": overall_metrics["overall_recall"],
     }
-
+    """
+    wandb.log({
+        "eval_accuracy": overall_metrics["overall_accuracy"],
+        "eval_f1": overall_metrics["overall_f1"],
+        "eval_precision": overall_metrics["overall_precision"],
+        "eval_recall": overall_metrics["overall_recall"],
+    })
+    """
     return overall_result
 
 # ## 3.1) Trainieren der Modelle
@@ -582,10 +589,13 @@ results_summary = []
 # Funktion zum Trainieren mit Adapter
 def train_with_adapter(dataset_name, tokenized_data):
     # Konfiguriere den Adapter
-    
+    # ✅ Reset W&B environment variables to force a truly separate run
+    os.environ.pop("WANDB_RUN_ID", None)
+    os.environ.pop("WANDB_RESUME", None)
+
     wandb.init(
         project="CrossCorpusNER",   # Dein Projektname in W&B
-        name=f"Train_{dataset_name}",  # z.B. Laufname = Name des Datensatzes
+        name=f"Train_{dataset_name}_{wandb.util.generate_id()}",  # z.B. Laufname = Name des Datensatzes
         tags=[f"timestamp_{START_TIME}", dataset_name],
     )
 
@@ -599,7 +609,7 @@ def train_with_adapter(dataset_name, tokenized_data):
     adapter_name = f"{dataset_name}_adapter"
     print(f"Erstellung des Adapters {adapter_name}")
     model.add_adapter(f"{adapter_name}", config=adapter_config)
-    model.add_tagging_head(f"head_{adapter_name}", num_labels=len(ID_TO_LABEL), id2label=ID_TO_LABEL)
+    model.add_tagging_head(f"{adapter_name}", num_labels=len(ID_TO_LABEL), id2label=ID_TO_LABEL)
     print(f"Adapter erstellt: {adapter_name}")
 
     model.set_active_adapters(Stack(adapter_name))
@@ -637,10 +647,10 @@ def train_with_adapter(dataset_name, tokenized_data):
     trainer.evaluate()
 
     adapter_path = os.path.join(BASE_ADAPTER_DIR,"adapters",adapter_name)
-    head_path = os.path.join(BASE_ADAPTER_DIR,"heads", f"head_{adapter_name}")
+    head_path = os.path.join(BASE_ADAPTER_DIR,"heads", f"{adapter_name}")
 
     model.save_adapter(adapter_path, adapter_name)
-    model.save_head(head_path, f"head_{adapter_name}")
+    model.save_head(head_path, f"{adapter_name}")
     trained_adapters.append(adapter_name)
     adapter_trainers[adapter_name] = trainer
     print(model.adapter_summary())
@@ -683,6 +693,14 @@ def train_with_adapter(dataset_name, tokenized_data):
             "recall": overall_metrics["overall_recall"],
             "confusion_matrix": cm
         })
+        """
+        wandb.log({
+            "test_accuracy": overall_metrics["overall_accuracy"],
+            "test_f1": overall_metrics["overall_f1"],
+            "test_precision": overall_metrics["overall_precision"],
+            "test_recall": overall_metrics["overall_recall"],
+        })
+        """
 
 
         # Berechne die prozentuale Confusion-Matrix
@@ -706,6 +724,7 @@ def train_with_adapter(dataset_name, tokenized_data):
         """
     wandb.finish()
     model.set_active_adapters(None)
+    
 
 
 # Training starten
@@ -849,13 +868,19 @@ def plot_training_progress(trainer):
 #model.delete_adapter_fusion(adapter_setup)
 
 # Optional: Fusion der Adapter
+print("Aktiviere Fusion Layer")
 adapter_setup = Fuse(*trained_adapters)
+model.add_tagging_head("head_fusion", num_labels=len(ID_TO_LABEL), id2label=ID_TO_LABEL)
 model.add_adapter_fusion(adapter_setup)
+
+# ✅ Reset W&B environment variables to force a truly separate run
+os.environ.pop("WANDB_RUN_ID", None)
+os.environ.pop("WANDB_RESUME", None)
 
 # W&B setup
 wandb.init(
         project="CrossCorpusNER",   # Dein Projektname in W&B
-        name=f"Fusion",  # z.B. Laufname = Name des Datensatzes
+        name=f"Fusion_{wandb.util.generate_id()}",  # z.B. Laufname = Name des Datensatzes
         tags=[f"timestamp_{START_TIME}", "Fusion"],
     )
 
@@ -864,6 +889,7 @@ batch_size_fusion = wandb.config.batch_size if hasattr(wandb.config, "batch_size
 epochs_fusion = wandb.config.num_train_epochs if hasattr(wandb.config, "num_train_epochs") else 1
 
 # Unfreeze and activate fusion setup
+model.set_active_adapters(adapter_setup)
 model.train_adapter_fusion(adapter_setup)
 
 #model.set_active_adapters(list(adapters.values()))
@@ -895,13 +921,18 @@ fusion_trainer = AdapterTrainer(
     eval_dataset=cross_domain_eval,
     tokenizer=tokenizer,
     data_collator=data_collator,
+    compute_metrics=calculate_metrics,
 )
 
 fusion_trainer.train() 
 fusion_trainer.evaluate()
+print(model.adapter_summary())
 
 fusion_path = os.path.join(BASE_ADAPTER_DIR,"adapters","fusion")
+head_path = os.path.join(BASE_ADAPTER_DIR,"heads", "head_fusion")
+
 model.save_adapter_fusion(fusion_path, adapter_setup)
+model.save_head(head_path, "head_fusion")
 #plot_training_progress(fusion_trainer) 
 
 print("\nEvaluierung des fusionierten Modells...")
@@ -935,6 +966,14 @@ for test_dataset_name, datasets in tokenized_datasets.items():
         "recall": overall_metrics["overall_recall"],
         "confusion_matrix": cm
     })
+    """
+    wandb.log({
+        "test_accuracy": overall_metrics["overall_accuracy"],
+        "test_f1": overall_metrics["overall_f1"],
+        "test_precision": overall_metrics["overall_precision"],
+        "test_recall": overall_metrics["overall_recall"],
+    })
+    """
 
     cm_percentage = cm / cm.sum(axis=1, keepdims=True) * 100
     annotations = np.array([
