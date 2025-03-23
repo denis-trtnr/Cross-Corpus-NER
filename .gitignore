@@ -14,3 +14,9 @@ __pycache__/
 
 # Ignore iob files
 *.iob
+
+# Ignore entire directories
+heads/
+logs/
+results/
+wandb/
