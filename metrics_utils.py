@@ -1,9 +1,11 @@
 import os
 import numpy as np
+import pandas as pd
 import evaluate
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
+from tabulate import tabulate
 
 # Importiere zentrale Objekte aus dem Pre‑Processing-Modul.
 from data_preprocessing import ID_TO_LABEL
@@ -53,8 +55,8 @@ def append_average_metrics(results_summary):
     Berechnet den arithmetischen Durchschnitt der Zusammengefassten Metriken
     """
     n = len(results_summary)
-      if n == 0:
-          return results_summary
+    if n == 0:
+        return results_summary
 
     avg_accuracy = sum(entry["accuracy"] for entry in results_summary) / n
     avg_f1       = sum(entry["f1"] for entry in results_summary) / n
@@ -73,11 +75,22 @@ def append_average_metrics(results_summary):
     results_summary.append(avg_entry)
     return results_summary
 
-def summarize_results(results_summary):
+def summarize_results(results_summary, filename, output_folder="results"):
     """Fasst die Evaluationsergebnisse zusammen und gibt eine Tabelle aus."""
     df = pd.DataFrame(append_average_metrics(results_summary))
     print("\nZusammenfassung der Ergebnisse:")
     print(tabulate(df.drop(columns=["confusion_matrix"]), headers="keys", tablefmt="grid", floatfmt=".4f"))
+
+    # Ordner erstellen, falls er nicht existiert
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Pfad zur Ausgabedatei
+    output_path = os.path.join(output_folder, filename)
+
+    # Speichere das DataFrame als CSV
+    df.drop(columns=["confusion_matrix"]).to_csv(output_path, index=False)
+    print(f"\nErgebnisse wurden in '{output_path}' gespeichert.")
 
 
 def save_confusion_matrix_png(cm, relevant_classes, filename, title="Confusion Matrix", folder="visualizations"):

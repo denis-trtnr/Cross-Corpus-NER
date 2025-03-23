@@ -150,12 +150,10 @@ def test_all_compositions():
         print(f"\nTeste Komposition: {method}")
         results = evaluate_composition(method, comp_obj)
         all_results.extend(results)
-    
-    # Zusammenfassen der Ergebnisse in einer DataFrame und Ausgabe als Tabelle.
-    df = pd.DataFrame(all_results)
-    print("\nZusammenfassung der Evaluationsergebnisse:")
-    print(tabulate(df.drop(columns=["confusion_matrix"]), headers="keys", tablefmt="grid", floatfmt=".4f"))
-    # Du kannst auch die Confusion Matrices separat speichern/plotten.
+
+
+    compositions_summary_file_name= f"compositions_summary_{START_TIME}.csv"
+    summarize_results(all_results, compositions_summary_file_name)
 
     # Deaktiviere die aktiven Adapter nach der Evaluation
     model.set_active_adapters(None)

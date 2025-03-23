@@ -132,7 +132,7 @@ def train_with_adapter(dataset_name, tokenized_data):
         # Speichere die Ergebnisse für die Zusammenfassung
         results_summary.append({
             "Adapter": adapter_name,
-            "Tested_on": test_dataset_name,
+            "Testset": test_dataset_name,
             "accuracy": overall_metrics["overall_accuracy"],
             "f1": overall_metrics["overall_f1"],
             "precision": overall_metrics["overall_precision"],
@@ -148,7 +148,8 @@ def train_all_adapters():
     for dataset_name, tokenized_data in tokenized_datasets.items():
         print(f"Starte Finetuning für {dataset_name}...")
         train_with_adapter(dataset_name, tokenized_data)
-    summarize_results(results_summary)
+    adapter_summary_file_name= f"adapter_summary_{START_TIME}.csv"
+    summarize_results(results_summary, adapter_summary_file_name)
     print(model.adapter_summary())
 
 # Optional: Training des Fusion-Layers, der die trainierten Einzeladapter kombiniert.
@@ -251,7 +252,8 @@ def train_fusion_layer():
         })
     wandb.finish()
 
-    summarize_results(fusion_summary)
+    fusion_summary_file_name= f"fusion_summary_{START_TIME}.csv"
+    summarize_results(fusion_summary, fusion_summary_file_name)
     print(model.adapter_summary())
 
 if __name__ == "__main__":
