@@ -1,13 +1,15 @@
 # test_compositions.py
 
 import os
+import evaluate
 import numpy as np
 import pandas as pd
 import adapters.composition as ac
 from datetime import datetime
 from tabulate import tabulate
 from sklearn.metrics import confusion_matrix
-import evaluate
+from transformers import TrainingArguments
+from adapters import AdapterTrainer
 
 # Importiere zentrale Objekte aus deinem Pre‑Processing‑Modul.
 from data_preprocessing import (
@@ -18,6 +20,9 @@ from data_preprocessing import (
     tokenizer,
     model  # Das Modell, das im Pre‑Processing bereits geladen wurde
 )
+
+# Importiere metrics utils aus dem Metrics-Modul.
+from metrics_utils import save_confusion_matrix_png, calculate_metrics, append_average_metrics, summarize_results
 
 # Globale Variablen
 BASE_ADAPTER_DIR = "/netscratch/dtrautner/studienarbeit/results"
@@ -94,11 +99,32 @@ def evaluate_composition(method_name, composition_obj):
     # Iteriere über alle Testsets in tokenized_datasets
     for test_dataset_name, dataset in tokenized_datasets.items():
         print(f"Evaluierung mit {method_name} auf {test_dataset_name}-Testset...")
-        # Nutze den integrierten Trainer für die Vorhersage
-        # (Da hier kein Trainer existiert, simulieren wir die Vorhersage mit model.predict())
-        # Du kannst alternativ einen einfachen Trainer initialisieren, falls erforderlich.
-        predictions, labels, _ = model.predict(dataset["test"])
-        predictions = np.argmax(predictions, axis=-1)
+        
+        # Initialisiere einen AdapterTrainer ausschließlich für die Vorhersage
+        training_args = TrainingArguments(
+            output_dir="./results",
+            per_device_eval_batch_size=8,
+            evaluation_strategy="no"  # Es findet kein Training statt
+        )
+
+        trainer = AdapterTrainer(
+            model=model,
+            args=training_args,
+            eval_dataset=dataset["test"],
+            tokenizer=tokenizer,
+            data_collator=data_collator
+        )
+
+
+        # Vorhersagen generieren
+        predictions_output = trainer.predict(dataset["test"])
+
+        # Extrahiere Logits und Label-IDs aus dem predictions_output-Objekt
+        logits = predictions_output.predictions
+        labels = predictions_output.label_ids
+
+        # Jetzt kann np.argmax angewendet werden
+        predictions = np.argmax(logits, axis=-1)
         true_labels = [[ID_TO_LABEL[l] for l in label if l != -100] for label in labels]
         pred_labels = [
             [ID_TO_LABEL[p] for (p, l) in zip(pred, label) if l != -100]
@@ -129,6 +155,8 @@ def evaluate_composition(method_name, composition_obj):
             "recall": overall_metrics["overall_recall"],
             "confusion_matrix": cm
         })
+    compositions_summary_file_name= f"{method_name}_summary_{START_TIME}.csv"
+    summarize_results(results, compositions_summary_file_name)
     return results
 
 
@@ -140,8 +168,7 @@ def test_all_compositions():
     # Hier: "stack", "average" und "parallel".
     compositions = {
         "stack": ac.Stack(*adapter_names),
-        "average": ac.AverageAdapter(*adapter_names),
-        "parallel": ac.ParallelAdapter(*adapter_names)
+        "average": ac.Average(*adapter_names, weights=[0.2, 0.2, 0.2, 0.2, 0.2])
     }
     
     all_results = []
