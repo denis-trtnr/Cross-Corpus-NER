@@ -12,7 +12,7 @@ parameters:
     values: [7,10]
 
 run_cap: 20
-program: train.py
+program: train_adapters.py
 
 command:
   - ${env}

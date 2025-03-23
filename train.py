@@ -415,8 +415,8 @@ for data in split_datasets:
     })
 
 
-# Tokenizer initialisieren
-pretrained_model = "distilbert-base-uncased" #earlier bert-base-uncased UNBEDINGT pubMEDBERT!!!
+# Tokenizer initialisieren 
+pretrained_model = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext" #earlier bert-base-uncased UNBEDINGT pubMEDBERT!!!
 #tokenizer = DistilBertTokenizerFast.from_pretrained(pretrained_model, clean_up_tokenization_spaces=True)
 config = AutoConfig.from_pretrained(pretrained_model, num_labels=len(LABEL_TO_ID), label2id=LABEL_TO_ID, id2label=ID_TO_LABEL)
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
