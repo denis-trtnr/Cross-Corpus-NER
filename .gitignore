@@ -13,7 +13,7 @@ __pycache__/
 .venv
 
 # Ignore iob files
-*.iob
+#*.iob
 
 # Ignore entire directories
 heads/
