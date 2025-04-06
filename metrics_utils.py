@@ -7,14 +7,11 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix
 from tabulate import tabulate
 
-# Importiere zentrale Objekte aus dem Pre‑Processing-Modul.
-from data_preprocessing import ID_TO_LABEL
-
 
 # Load the seqeval metric once
 metric = evaluate.load("seqeval")
 
-def calculate_metrics(predictions_and_labels):
+def calculate_metrics(predictions_and_labels, id_to_label):
     """
     Berechnet NER-Metriken (Accuracy, F1, Precision, Recall) mithilfe von seqeval.
     
@@ -33,11 +30,10 @@ def calculate_metrics(predictions_and_labels):
     for sentence_labels, sentence_predictions in zip(labels, predicted_labels):
         filtered_true = []
         filtered_pred = []
-        # Here, we assume that sentence_labels and sentence_predictions are iterables.
         for lab, pred in zip(sentence_labels, sentence_predictions):
             if lab != -100:
-                filtered_true.append(ID_TO_LABEL[lab])
-                filtered_pred.append(ID_TO_LABEL[pred])
+                filtered_true.append(id_to_label[lab])
+                filtered_pred.append(id_to_label[pred])
         if filtered_true:
             true_labels.append(filtered_true)
             true_predictions.append(filtered_pred)
@@ -86,7 +82,7 @@ def summarize_results(results_summary, filename, output_folder="results"):
         os.makedirs(output_folder)
 
     # Pfad zur Ausgabedatei
-    output_path = os.path.join(output_folder, filename)
+    output_path = os.path.join(output_folder, filename.replace("/", "-"))
 
     # Speichere das DataFrame als CSV
     df.drop(columns=["confusion_matrix"]).to_csv(output_path, index=False)
@@ -106,7 +102,7 @@ def save_confusion_matrix_png(cm, relevant_classes, filename, title="Confusion M
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    file_path = os.path.join(folder, filename)
+    file_path = os.path.join(folder, filename.replace("/", "-"))
 
     # Vermeide Division durch 0: Falls eine Zeilensumme 0 ist, setze sie auf 1
     row_sums = cm.sum(axis=1, keepdims=True)

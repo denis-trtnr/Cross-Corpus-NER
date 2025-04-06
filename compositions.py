@@ -1,4 +1,4 @@
-# test_compositions.py
+# compositions.py
 
 import os
 import evaluate
@@ -11,23 +11,32 @@ from sklearn.metrics import confusion_matrix
 from transformers import TrainingArguments
 from adapters import AdapterTrainer
 
-# Importiere zentrale Objekte aus deinem Pre‑Processing‑Modul.
-from data_preprocessing import (
-    get_tokenized_datasets,
-    ID_TO_LABEL,
-    data_collator,
-    config,
-    tokenizer,
-    model  # Das Modell, das im Pre‑Processing bereits geladen wurde
-)
-
+# Importiere den DataPreprocessor
+from data_preprocessing import DataPreprocessor
 # Importiere metrics utils aus dem Metrics-Modul.
 from metrics_utils import save_confusion_matrix_png, calculate_metrics, append_average_metrics, summarize_results
+
+#Variables zu setzen
+mapping_type = "granular"
+base_model = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
+
 
 # Globale Variablen
 BASE_ADAPTER_DIR = "/netscratch/dtrautner/studienarbeit/results"
 START_TIME = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 metric = evaluate.load("seqeval")
+
+preprocessor = DataPreprocessor(
+    mapping_type=mapping_type,
+    base_model=base_model,
+    data_dir="data"
+)
+
+tokenized_datasets = preprocessor.get_tokenized_datasets()
+tokenizer = preprocessor.tokenizer
+model = preprocessor.model
+data_collator = preprocessor.data_collator
+ID_TO_LABEL = preprocessor.id_to_label
 
 # Liste der Namen der bereits trainierten Einzeladapter (angepasst an deine Adapternamen)
 adapter_names = [
@@ -54,38 +63,6 @@ def load_stored_adapters(adapter_names):
 
 # Lade die Adapter ins Modell
 load_stored_adapters(adapter_names)
-
-# Hole die tokenisierten Datasets aus dem Pre‑Processing-Modul
-tokenized_datasets = get_tokenized_datasets()
-
-# Definition einer calculate_metrics-Funktion (falls sie nicht bereits in einem anderen Modul ist)
-def calculate_metrics(predictions_and_labels):
-    logits, labels = predictions_and_labels
-    predicted_labels = np.argmax(logits, axis=-1)
-    true_labels = []
-    true_predictions = []
-    for sentence_labels, sentence_predictions in zip(labels, predicted_labels):
-        # Sicherstellen, dass wir mit iterablen Sätzen arbeiten:
-        if np.isscalar(sentence_labels):
-            sentence_labels = [sentence_labels]
-        if np.isscalar(sentence_predictions):
-            sentence_predictions = [sentence_predictions]
-        filtered_true = []
-        filtered_pred = []
-        for lab, pred in zip(sentence_labels, sentence_predictions):
-            if lab != -100:
-                filtered_true.append(ID_TO_LABEL[lab])
-                filtered_pred.append(ID_TO_LABEL[pred])
-        if filtered_true:
-            true_labels.append(filtered_true)
-            true_predictions.append(filtered_pred)
-    overall = metric.compute(predictions=true_predictions, references=true_labels, zero_division=1)
-    return {
-        "accuracy": overall["overall_accuracy"],
-        "f1": overall["overall_f1"],
-        "precision": overall["overall_precision"],
-        "recall": overall["overall_recall"],
-    }
 
 def evaluate_composition(method_name, composition_obj):
     """
@@ -155,7 +132,7 @@ def evaluate_composition(method_name, composition_obj):
             "recall": overall_metrics["overall_recall"],
             "confusion_matrix": cm
         })
-    compositions_summary_file_name= f"{method_name}_summary_{START_TIME}.csv"
+    compositions_summary_file_name= f"{method_name}_summary_{base_model}_{START_TIME}.csv"
     summarize_results(results, compositions_summary_file_name)
     return results
 
@@ -179,7 +156,7 @@ def test_all_compositions():
         all_results.extend(results)
 
 
-    compositions_summary_file_name= f"compositions_summary_{START_TIME}.csv"
+    compositions_summary_file_name= f"compositions_summary_{base_model}_{START_TIME}.csv"
     summarize_results(all_results, compositions_summary_file_name)
 
     # Deaktiviere die aktiven Adapter nach der Evaluation
