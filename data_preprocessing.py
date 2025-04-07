@@ -1,6 +1,7 @@
 # data_preprocessing.py
 
 import os
+import wandb
 import random
 import warnings
 from datetime import datetime
@@ -30,12 +31,13 @@ class DataPreprocessor:
                  mapping_type: str = "granular", 
                  base_model: str = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext",
                  data_dir: str = "data"):
+        
         self.mapping_type = mapping_type
         self.base_model = base_model
         self.data_dir = data_dir
 
         # Setze die globalen Label-Variablen in der Instanz
-        if mapping_type == "granular":
+        if self.mapping_type == "granular":
             self.unified_labels = UNIFIED_LABELS_GRANULAR
         else:
             self.unified_labels = UNIFIED_LABELS_BROAD
