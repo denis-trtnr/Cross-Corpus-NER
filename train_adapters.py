@@ -8,7 +8,7 @@ from datetime import datetime
 from tabulate import tabulate
 from sklearn.metrics import confusion_matrix
 from transformers import TrainingArguments, AutoConfig, AutoTokenizer
-from adapters import AutoAdapterModel, AdapterTrainer, AdapterConfig
+from adapters import AutoAdapterModel, AdapterTrainer, AdapterConfig, SeqBnConfig, CompacterConfig
 from adapters.composition import Stack, Fuse
 
 # Importiere den DataPreprocessoraus dem Pre‑Processing-Modul.
@@ -75,7 +75,31 @@ def train_with_adapter(dataset_name, tokenized_data):
     epochs = getattr(wandb.config, "num_train_epochs", None) or getattr(global_config, "num_train_epochs", 1)
     adapter_config_name = getattr(wandb.config, "adapter_config_name", None) or getattr(global_config, "adapter_config_name", "houlsby")
 
-    adapter_config = AdapterConfig.load(adapter_config_name)
+
+    # Adapterkonfiguration basierend auf Name
+    adapter_config = None
+
+    if adapter_config_name.lower() == "custom":
+        print("Custom Adapter-Konfiguration mit Default-Parametern wird erstellt...")
+        adapter_config = SeqBnConfig(
+            mh_adapter=True,
+            output_adapter=True,
+            reduction_factor=16,
+            non_linearity="gelu",
+            ln_before=False,
+            ln_after=True,
+            residual_before_ln=True
+        )
+    elif adapter_config_name.lower() == "compacter":
+        print("Compacter Adapter-Konfiguration wird erstellt...")
+        adapter_config = CompacterConfig(
+            reduction_factor=16,
+            non_linearity="gelu"
+        )
+    else:
+        print(f"Adapter-Konfiguration '{adapter_config_name}' wird geladen...")
+        adapter_config = AdapterConfig.load(adapter_config_name)
+
     adapter_name = f"{dataset_name}_adapter"
     print(f"Erstellung des Adapters {adapter_name} ...")
     model.add_adapter(adapter_name, config=adapter_config)
@@ -151,7 +175,7 @@ def train_with_adapter(dataset_name, tokenized_data):
         cm = confusion_matrix(true_labels_flat, pred_labels_flat, labels=relevant_classes)
 
         # Speichere Confusion Matrix
-        save_confusion_matrix_png(cm, relevant_classes, f"confusion_matrix_{adapter_name}_{test_dataset_name}_{base_model_name}.png",
+        save_confusion_matrix_png(cm, relevant_classes, f"confusion_matrix_{adapter_name}_{test_dataset_name}_{base_model_name}_{adapter_config_name}_{mapping_type}.png",
                           title=f"Confusion Matrix for {adapter_name} tested on {test_dataset_name}")
 
         # Speichere die Ergebnisse für die Zusammenfassung
@@ -173,7 +197,7 @@ def train_all_adapters():
     for dataset_name, tokenized_data in tokenized_datasets.items():
         print(f"Starte Finetuning für {dataset_name}...")
         train_with_adapter(dataset_name, tokenized_data)
-    adapter_summary_file_name= f"adapter_summary_{base_model_name}_{START_TIME}.csv"
+    adapter_summary_file_name= f"adapter_summary_{base_model_name}_{START_TIME}_{mapping_type}.csv"
     summarize_results(results_summary, adapter_summary_file_name)
     print(model.adapter_summary())
 
@@ -204,6 +228,7 @@ def train_fusion_layer():
     lr_fusion = getattr(wandb.config, "learning_rate", None) or getattr(global_config, "learning_rate", 2e-4)
     batch_size_fusion = getattr(wandb.config, "batch_size", None) or getattr(global_config, "batch_size", 8)
     epochs_fusion = getattr(wandb.config, "num_train_epochs_fusion", None) or getattr(global_config, "num_train_epochs_fusion", 1)
+    adapter_config_name = getattr(wandb.config, "adapter_config_name", None) or getattr(global_config, "adapter_config_name", "houlsby")
 
     model.set_active_adapters(adapter_setup)
     model.train_adapter_fusion(adapter_setup)
@@ -270,7 +295,7 @@ def train_fusion_layer():
         cm = confusion_matrix(true_labels_flat, pred_labels_flat, labels=relevant_classes)
 
         # Speichere Confusion Matrix
-        save_confusion_matrix_png(cm, relevant_classes, f"confusion_matrix_fusion_{test_dataset_name}_{base_model_name}.png",
+        save_confusion_matrix_png(cm, relevant_classes, f"confusion_matrix_fusion_{test_dataset_name}_{base_model_name}_{adapter_config_name}_{mapping_type}.png",
                           title=f"Confusion Matrix for Fusion Adapter tested on {test_dataset_name}")
 
         fusion_summary.append({
@@ -283,7 +308,7 @@ def train_fusion_layer():
         })
     wandb.finish()
 
-    fusion_summary_file_name= f"fusion_summary_{base_model_name}_{START_TIME}.csv"
+    fusion_summary_file_name= f"fusion_summary_{base_model_name}_{START_TIME}_{adapter_config_name}_{mapping_type}.csv"
     summarize_results(fusion_summary, fusion_summary_file_name)
     print(model.adapter_summary())
 

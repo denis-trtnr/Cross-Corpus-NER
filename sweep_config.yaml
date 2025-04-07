@@ -5,16 +5,16 @@ metric:
 
 parameters:
   learning_rate:
-    values: [2e-4, 3e-4, 4e-4]
+    values: [2e-4, 3e-4]
   batch_size:
-    values: [8,16]
+    values: [8]
   num_train_epochs:
     values: [10]
   adapter_config_name:
-    values: [houlsby] # houlsby, pfeiffer
+    values: [houlsby,pfeiffer,compacter,custom] # houlsby,pfeiffer,compacter,custom
   #Fusion Layer specific params
   num_train_epochs_fusion:
-    values: [5,10]
+    values: [7,10]
 
 run_cap: 20
 program: train_adapters.py
