@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import wandb
 import evaluate
+from datasets import concatenate_datasets
 from datetime import datetime
 from tabulate import tabulate
 from sklearn.metrics import confusion_matrix
@@ -12,15 +13,21 @@ from transformers import TrainingArguments, AutoConfig, AutoTokenizer
 from adapters import AutoAdapterModel, AdapterTrainer, AdapterConfig
 from adapters.composition import Stack, Fuse
 
-# Importiere zentrale Objekte aus dem Pre‑Processing-Modul.
-from data_preprocessing import get_tokenized_datasets, ID_TO_LABEL, data_collator, config, tokenizer, model
+# Importiere den DataPreprocessoraus dem Pre‑Processing-Modul.
+from data_preprocessing import DataPreprocessor
 # Importiere metrics utils aus dem Metrics-Modul.
 from metrics_utils import save_confusion_matrix_png, calculate_metrics, append_average_metrics, summarize_results
+from config_utils import load_config
+
+# Globalen variablen (werden in der main-Funktion gesetzt)
+global_config = None
+tokenized_datasets = None
+tokenizer = None
+model = None
+data_collator = None
+ID_TO_LABEL = None
 
 metric = evaluate.load("seqeval")
-
-# Laden der tokenisierten Datasets aus dem Pre‑Processing-Modul
-tokenized_datasets = get_tokenized_datasets()
 
 BASE_ADAPTER_DIR = "/netscratch/dtrautner/studienarbeit/results"
 START_TIME = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -41,17 +48,20 @@ def train_with_adapter(dataset_name, tokenized_data):
     os.environ.pop("WANDB_RUN_ID", None)
     os.environ.pop("WANDB_RESUME", None)
     
-    wandb.init(
+    unique_run_id = wandb.util.generate_id()
+    run = wandb.init(
         project="CrossCorpusNER",
-        name=f"Train_{dataset_name}_{wandb.util.generate_id()}",
+        name=f"Train_{dataset_name}_{unique_run_id}",
         tags=[f"timestamp_{START_TIME}", dataset_name],
+        reinit=True,
     )
-    
-    lr = wandb.config.learning_rate if hasattr(wandb.config, "learning_rate") else 2e-4
-    batch_size = wandb.config.batch_size if hasattr(wandb.config, "batch_size") else 8
-    epochs = wandb.config.num_train_epochs if hasattr(wandb.config, "num_train_epochs") else 1
 
-    adapter_config = AdapterConfig.load("houlsby")
+    lr = global_config.learning_rate if hasattr(global_config, "learning_rate") else 2e-4
+    batch_size = global_config.batch_size if hasattr(global_config, "batch_size") else 8
+    epochs = global_config.num_train_epochs if hasattr(global_config, "num_train_epochs") else 1
+    adapter_config_name = global_config.adapter_config_name if hasattr(global_config, "adapter_config_name") else "houlsby"
+
+    adapter_config = AdapterConfig.load(adapter_config_name)
     adapter_name = f"{dataset_name}_adapter"
     print(f"Erstellung des Adapters {adapter_name} ...")
     model.add_adapter(adapter_name, config=adapter_config)
@@ -75,6 +85,7 @@ def train_with_adapter(dataset_name, tokenized_data):
         logging_strategy="epoch",
         remove_unused_columns=False,
         report_to="wandb",
+        local_rank=-1,
     )
 
     trainer = AdapterTrainer(
@@ -84,7 +95,7 @@ def train_with_adapter(dataset_name, tokenized_data):
         eval_dataset=tokenized_data["dev"],
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=calculate_metrics,
+        compute_metrics=lambda pred: calculate_metrics(pred, ID_TO_LABEL)
     )
 
     trainer.train()
@@ -126,7 +137,7 @@ def train_with_adapter(dataset_name, tokenized_data):
         cm = confusion_matrix(true_labels_flat, pred_labels_flat, labels=relevant_classes)
 
         # Speichere Confusion Matrix
-        save_confusion_matrix_png(cm, relevant_classes, f"confusion_matrix_{adapter_name}_{test_dataset_name}.png",
+        save_confusion_matrix_png(cm, relevant_classes, f"confusion_matrix_{adapter_name}_{test_dataset_name}_{global_config.model}.png",
                           title=f"Confusion Matrix for {adapter_name} tested on {test_dataset_name}")
 
         # Speichere die Ergebnisse für die Zusammenfassung
@@ -148,7 +159,7 @@ def train_all_adapters():
     for dataset_name, tokenized_data in tokenized_datasets.items():
         print(f"Starte Finetuning für {dataset_name}...")
         train_with_adapter(dataset_name, tokenized_data)
-    adapter_summary_file_name= f"adapter_summary_{START_TIME}.csv"
+    adapter_summary_file_name= f"adapter_summary_{global_config.model}_{START_TIME}.csv"
     summarize_results(results_summary, adapter_summary_file_name)
     print(model.adapter_summary())
 
@@ -165,20 +176,23 @@ def train_fusion_layer():
 
     os.environ.pop("WANDB_RUN_ID", None)
     os.environ.pop("WANDB_RESUME", None)
-    wandb.init(
+
+    unique_run_id = wandb.util.generate_id()
+    run = wandb.init(
         project="CrossCorpusNER",
-        name=f"Fusion_{wandb.util.generate_id()}",
+        name=f"Fusion_{unique_run_id}",
         tags=[f"timestamp_{START_TIME}", "Fusion"],
+        reinit=True,
     )
-    lr_fusion = wandb.config.learning_rate if hasattr(wandb.config, "learning_rate") else 2e-4
-    batch_size_fusion = wandb.config.batch_size if hasattr(wandb.config, "batch_size") else 8
-    epochs_fusion = wandb.config.num_train_epochs if hasattr(wandb.config, "num_train_epochs") else 1
+
+    lr_fusion = global_config.learning_rate_fusion if hasattr(global_config, "learning_rate_fusion") else 2e-4
+    batch_size_fusion = global_config.batch_size_fusion if hasattr(global_config, "batch_size_fusion") else 8
+    epochs_fusion = global_config.num_train_epochs_fusion if hasattr(global_config, "num_train_epochs_fusion") else 1
 
     model.set_active_adapters(adapter_setup)
     model.train_adapter_fusion(adapter_setup)
 
     # Cross-Domain-Daten: Zusammenführen aller Train- und Dev-Sets
-    from datasets import concatenate_datasets
     cross_domain_train = concatenate_datasets([tokenized_datasets[ds]["train"] for ds in tokenized_datasets])
     cross_domain_eval = concatenate_datasets([tokenized_datasets[ds]["dev"] for ds in tokenized_datasets])
     
@@ -195,6 +209,7 @@ def train_fusion_layer():
         save_strategy="epoch",
         load_best_model_at_end=True,
         report_to="wandb",
+        local_rank=-1,
     )
 
     fusion_trainer = AdapterTrainer(
@@ -204,7 +219,7 @@ def train_fusion_layer():
         eval_dataset=cross_domain_eval,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=calculate_metrics,
+        compute_metrics=lambda pred: calculate_metrics(pred, ID_TO_LABEL)
     )
 
     fusion_trainer.train()
@@ -239,7 +254,7 @@ def train_fusion_layer():
         cm = confusion_matrix(true_labels_flat, pred_labels_flat, labels=relevant_classes)
 
         # Speichere Confusion Matrix
-        save_confusion_matrix_png(cm, relevant_classes, f"confusion_matrix_fusion_{test_dataset_name}.png",
+        save_confusion_matrix_png(cm, relevant_classes, f"confusion_matrix_fusion_{test_dataset_name}_{global_config.model}.png",
                           title=f"Confusion Matrix for Fusion Adapter tested on {test_dataset_name}")
 
         fusion_summary.append({
@@ -252,11 +267,26 @@ def train_fusion_layer():
         })
     wandb.finish()
 
-    fusion_summary_file_name= f"fusion_summary_{START_TIME}.csv"
+    fusion_summary_file_name= f"fusion_summary_{global_config.model}_{START_TIME}.csv"
     summarize_results(fusion_summary, fusion_summary_file_name)
     print(model.adapter_summary())
 
 if __name__ == "__main__":
+    #Initialisiere globale Variablen
+    preprocessor = DataPreprocessor(
+        mapping_type="",
+        base_model="",
+        data_dir="data",
+        get_wandb=True
+    )
+    global_config = preprocessor.global_config
+    tokenized_datasets = preprocessor.get_tokenized_datasets()
+    tokenizer = preprocessor.tokenizer
+    model = preprocessor.model
+    data_collator = preprocessor.data_collator
+    ID_TO_LABEL = preprocessor.id_to_label
+
+
     # Einzeladapter trainieren und evaluieren
     train_all_adapters()
 

@@ -9,7 +9,20 @@ parameters:
   batch_size:
     values: [4,8,16]
   num_train_epochs:
-    values: [7,10]
+    values: [1]
+  mapping_type:
+    values: [granular] # granular or broad
+  model:
+    values: [microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext] # dmis-lab/biobert-base-cased-v1.2 , google-bert/bert-base-uncased
+  adapter_config_name:
+    values: [houlsby] # houlsby, pfeiffer
+  #Fusion Layer specific params
+  learning_rate_fusion:
+    values: [2e-4, 3e-4, 4e-4]
+  batch_size_fusion:
+    values: [4,8,16]
+  num_train_epochs_fusion:
+    values: [1]
 
 run_cap: 20
 program: train_adapters.py
