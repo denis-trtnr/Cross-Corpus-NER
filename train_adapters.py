@@ -81,14 +81,24 @@ def train_with_adapter(dataset_name, tokenized_data):
 
     if adapter_config_name.lower() == "custom":
         print("Custom Adapter-Konfiguration mit Default-Parametern wird erstellt...")
+
+        non_linearity = getattr(wandb.config, "non_linearity", "gelu")
+        reduction_factor = getattr(wandb.config, "reduction_factor", 8)
+        dropout = getattr(wandb.config, "dropout", 0.1)
+        init_weights = getattr(wandb.config, "init_weights", "bert")
+        mh_adapter = getattr(wandb.config, "mh_adapter", True)
+        residual_before_ln = getattr(wandb.config, "residual_before_ln", True)
+
         adapter_config = SeqBnConfig(
-            mh_adapter=True,
+            mh_adapter=mh_adapter,
             output_adapter=True,
-            reduction_factor=16,
-            non_linearity="gelu",
+            reduction_factor=reduction_factor,
+            non_linearity=non_linearity,
             ln_before=False,
-            ln_after=True,
-            residual_before_ln=True
+            ln_after=False,
+            residual_before_ln=residual_before_ln,
+            dropout=dropout,
+            init_weights=init_weights,
         )
     elif adapter_config_name.lower() == "compacter":
         print("Compacter Adapter-Konfiguration wird erstellt...")
