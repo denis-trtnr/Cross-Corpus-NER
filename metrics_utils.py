@@ -46,6 +46,62 @@ def calculate_metrics(predictions_and_labels, id_to_label):
         "recall": overall["overall_recall"],
     }
 
+
+
+def evaluate_model_on_testsets(trainer, adapter_name, id_to_label, tokenized_datasets, base_model_name, adapter_config_name, mapping_type, prefix=""):
+    """
+    Führt die Evaluation eines trainierten Adapters oder Fusion-Modells auf allen Test-Datensätzen durch.
+    Dabei werden Vorhersagen generiert, seqeval-Metriken berechnet und Confusion-Matrizen erstellt und gespeichert.
+
+    Parameter:
+      trainer (AdapterTrainer): Der Trainer, mit dem Vorhersagen gemacht werden.
+      adapter_name (str): Name des Adapters oder Fusions-Setups.
+      id_to_label (dict): Mapping von Label-IDs zu Label-Namen.
+      tokenized_datasets (dict): Tokenisierte Datensätze mit "test"-Splits für jede Domäne.
+      base_model_name (str): Name des Basis-Modells (für die Datei- und Logbenennung).
+      adapter_config_name (str): Name der Adapter-Konfiguration.
+      mapping_type (str): Typ der verwendeten Label-Mapping-Konfiguration (z.B. granular).
+      prefix (str): Optionaler Präfix für Dateinamen (z.B. "fusion_").
+
+    Rückgabe:
+      list: Eine Liste von Dictionaries, die die Metriken und Confusion-Matrizen pro Testset enthalten.
+    """
+    
+    evaluation_results = []
+
+    for test_dataset_name, dataset in tokenized_datasets.items():
+        print(f"Evaluierung auf {test_dataset_name}-Testset ...")
+        predictions, labels, _ = trainer.predict(dataset["test"])
+        predictions = np.argmax(predictions, axis=-1)
+        true_labels = [[id_to_label[l] for l in label if l != -100] for label in labels]
+        pred_labels = [
+            [id_to_label[p] for (p, l) in zip(pred, label) if l != -100]
+            for pred, label in zip(predictions, labels)
+        ]
+        overall_metrics = metric.compute(predictions=pred_labels, references=true_labels, zero_division=1)
+
+        true_labels_flat = [label for sublist in true_labels for label in sublist]
+        pred_labels_flat = [pred for sublist in pred_labels for pred in sublist]
+
+        relevant_classes = sorted(set(true_labels_flat).union(set(pred_labels_flat)))
+        cm = confusion_matrix(true_labels_flat, pred_labels_flat, labels=relevant_classes)
+
+        filename = f"confusion_matrix_{prefix}{adapter_name}_{test_dataset_name}_{base_model_name}_{adapter_config_name}_{mapping_type}.png"
+        save_confusion_matrix_png(cm, relevant_classes, filename, title=f"Confusion Matrix for {adapter_name} tested on {test_dataset_name}")
+
+        evaluation_results.append({
+            "Adapter": adapter_name if prefix != "fusion_" else "Fusion",
+            "Testset": test_dataset_name,
+            "accuracy": overall_metrics["overall_accuracy"],
+            "f1": overall_metrics["overall_f1"],
+            "precision": overall_metrics["overall_precision"],
+            "recall": overall_metrics["overall_recall"],
+            "confusion_matrix": cm
+        })
+    
+    return evaluation_results
+
+
 def append_average_metrics(results_summary):
     """
     Berechnet den arithmetischen Durchschnitt der Zusammengefassten Metriken
