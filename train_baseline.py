@@ -26,11 +26,12 @@ class BaselineTrainerManager:
         tokenizer,
         data_collator,
         id_to_label,
+        model_config,
         config=None,
         base_adapter_dir="/netscratch/dtrautner/studienarbeit/results",
     ):
         """
-        nitialisiert das Baseline-Training mit vorbereiteten Komponenten.
+        Initialisiert das Baseline-Training mit vorbereiteten Komponenten.
 
         Parameter:
         - base_model_name (str): Name des Basismodells
@@ -39,6 +40,7 @@ class BaselineTrainerManager:
         - tokenizer: Der verwendete Tokenizer
         - data_collator: Der Data Collator für die Dataloader
         - id_to_label (dict): Mapping von IDs zu Labels
+        - model_config (dict): Konfiguration zur Initialisierung des Modells
         - config (dict): Optional geladene YAML-Konfiguration
         - base_adapter_dir (str): Zielverzeichnis für Ergebnisse und Logs
         """
@@ -53,8 +55,7 @@ class BaselineTrainerManager:
 
         self.model = AutoModelForTokenClassification.from_pretrained(
                 base_model_name,
-                id2label=self.id_to_label,
-                label2id=self.label_to_id,
+                config=model_config
         )
         self.tokenized_datasets = tokenized_datasets
         self.tokenizer = tokenizer
@@ -78,7 +79,7 @@ class BaselineTrainerManager:
                 evaluation_strategy="epoch",
                 save_strategy="epoch",
                 learning_rate=2e-5,
-                num_train_epochs=10,
+                num_train_epochs=5,
                 per_device_train_batch_size=8,
                 weight_decay=0.01,
                 load_best_model_at_end=True,

@@ -27,6 +27,7 @@ class AdapterCompositionEvaluator:
         tokenized_datasets,
         data_collator,
         id_to_label,
+        model_config,
         adapter_names,
         base_adapter_dir="/netscratch/dtrautner/studienarbeit/results",
     ):
@@ -41,13 +42,14 @@ class AdapterCompositionEvaluator:
         - tokenized_datasets (dict): Dict mit test-Datasets
         - data_collator: Collator für DataLoader
         - id_to_label (dict): Mapping von Label-IDs zu Labelnamen
+        - model_config (dict): Konfiguration zur Initialisierung des Modells
         - adapter_names (list): Liste der zu kombinierenden Adapternamen
         - base_adapter_dir (str): Basispfad zu gespeicherten Adaptern und Heads
         - metric (evaluate.Metric): Eval-Metrik (default: seqeval)
         """
         self.base_model_name = base_model_name
         self.mapping_type = mapping_type
-        self.model = AutoAdapterModel.from_pretrained(base_model_name)
+        self.model = AutoAdapterModel.from_pretrained(base_model_name, config=model_config)
         self.tokenizer = tokenizer
         self.tokenized_datasets = tokenized_datasets
         self.data_collator = data_collator
@@ -207,6 +209,7 @@ if __name__ == "__main__":
         tokenized_datasets=pre.get_tokenized_datasets(),
         data_collator=pre.data_collator,
         id_to_label=pre.id_to_label,
+        model_config=pre.config,
         adapter_names=adapter_names,
     )
 

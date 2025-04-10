@@ -29,6 +29,7 @@ class AdapterTrainerManager:
         tokenizer,
         data_collator,
         id_to_label,
+        model_config,
         config=None,
         base_adapter_dir="/netscratch/dtrautner/studienarbeit/results",
     ):
@@ -42,6 +43,7 @@ class AdapterTrainerManager:
         - tokenizer: Der verwendete Tokenizer
         - data_collator: Der Data Collator für die Dataloader
         - id_to_label (dict): Mapping von IDs zu Labels
+        - model_config (dict): Konfiguration zur Initialisierung des Modells
         - config (dict): Optional geladene YAML-Konfiguration
         - base_adapter_dir (str): Basisverzeichnis zum Speichern von Adaptern, Logs etc.
         """
@@ -51,7 +53,7 @@ class AdapterTrainerManager:
         self.base_adapter_dir = base_adapter_dir
         self.start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-        self.model = AutoAdapterModel.from_pretrained(base_model_name)
+        self.model = AutoAdapterModel.from_pretrained(base_model_name, config=model_config)
         self.tokenized_datasets = tokenized_datasets
         self.tokenizer = tokenizer
         self.data_collator = data_collator
@@ -279,6 +281,7 @@ if __name__ == "__main__":
     manager = AdapterTrainerManager(
         base_model_name=base_model_name,
         mapping_type=mapping_type,
+        model_config=pre.config,
         config=global_config,
         tokenized_datasets=pre.get_tokenized_datasets(),
         tokenizer=pre.tokenizer,

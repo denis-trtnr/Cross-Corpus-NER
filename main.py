@@ -26,6 +26,7 @@ def evaluate(mapping_type, base_model_name):
     adapter_manager = AdapterTrainerManager(
         base_model_name=base_model_name,
         mapping_type=mapping_type,
+        model_config=pre.config,
         config=global_config,
         tokenized_datasets=tokenized_datasets,
         tokenizer=pre.tokenizer,
@@ -37,6 +38,7 @@ def evaluate(mapping_type, base_model_name):
     adapter_manager.train_all_adapters()
     adapter_manager.train_fusion_layer()
 
+    """
     # Erstelle eine Instanz des AdapterCompositionEvaluator
     evaluator = AdapterCompositionEvaluator(
         base_model_name=base_model_name,
@@ -45,6 +47,7 @@ def evaluate(mapping_type, base_model_name):
         tokenized_datasets=tokenized_datasets,
         data_collator=pre.data_collator,
         id_to_label=pre.id_to_label,
+        model_config=pre.config,
         adapter_names=adapter_names,
     )
 
@@ -55,6 +58,7 @@ def evaluate(mapping_type, base_model_name):
     baseline_manager = BaselineTrainerManager(
         base_model_name=base_model_name,
         mapping_type=mapping_type,
+        model_config=pre.config,
         config=global_config,
         tokenized_datasets=tokenized_datasets,
         tokenizer=pre.tokenizer,
@@ -64,7 +68,7 @@ def evaluate(mapping_type, base_model_name):
 
     # Starte Baseline Training
     baseline_manager.train_all_models()
-
+    """
     
 
 if __name__ == "__main__":
