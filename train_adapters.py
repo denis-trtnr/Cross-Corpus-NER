@@ -30,7 +30,6 @@ class AdapterTrainerManager:
         data_collator,
         id_to_label,
         config=None,
-        data_dir="data",
         base_adapter_dir="/netscratch/dtrautner/studienarbeit/results",
     ):
         """
@@ -44,13 +43,11 @@ class AdapterTrainerManager:
         - data_collator: Der Data Collator für die Dataloader
         - id_to_label (dict): Mapping von IDs zu Labels
         - config (dict): Optional geladene YAML-Konfiguration
-        - data_dir (str): Datenverzeichnis
         - base_adapter_dir (str): Basisverzeichnis zum Speichern von Adaptern, Logs etc.
         """
         self.config = config or read_yaml_config()
         self.base_model_name = base_model_name
         self.mapping_type = mapping_type
-        self.data_dir = data_dir
         self.base_adapter_dir = base_adapter_dir
         self.start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -92,92 +89,91 @@ class AdapterTrainerManager:
         Führt das Training für alle verfügbaren Einzel-Datensätze durch.
         Speichert die Adapter, ihre Heads und eine Übersicht der Ergebnisse.
         """
+        config_name = None
         for dataset_name, tokenized_data in self.tokenized_datasets.items():
             print(f"Starte Finetuning für {dataset_name}...")
-            self._train_with_adapter(dataset_name, tokenized_data)
 
-        file_name = f"adapter_summary_{self.base_model_name}_{self.start_time}_{self.mapping_type}.csv"
+            # Reset von W&B-Umgebungsvariablen
+            os.environ.pop("WANDB_RUN_ID", None)
+            os.environ.pop("WANDB_RESUME", None)
+
+            run_id = wandb.util.generate_id()
+            run = wandb.init(
+                project="Cross-Corpus-NER",
+                name=f"Train_{dataset_name}_{run_id}",
+                tags=[f"timestamp_{self.start_time}", dataset_name],
+                reinit=True,
+                resume=False,
+                id=run_id,
+            )
+
+            config_name = getattr(wandb.config, "adapter_config_name", None) or self.config.get("adapter_config_name", "houlsby")
+            adapter_config = self._build_adapter_config(config_name)
+
+            adapter_name = f"{dataset_name}_adapter"
+            self.model.add_adapter(adapter_name, config=adapter_config)
+            self.model.add_tagging_head(adapter_name, num_labels=len(self.id_to_label), id2label=self.id_to_label)
+            self.model.set_active_adapters(Stack(adapter_name))
+            self.model.train_adapter(adapter_name)
+
+            lr = getattr(wandb.config, "learning_rate", None) or self.config.get("learning_rate", 2e-4)
+            batch_size = getattr(wandb.config, "batch_size", None) or self.config.get("batch_size", 8)
+            epochs = getattr(wandb.config, "num_train_epochs", None) or self.config.get("num_train_epochs", 1)
+
+            training_args = TrainingArguments(
+                output_dir=os.path.join(self.base_adapter_dir, "results", dataset_name),
+                evaluation_strategy="epoch",
+                learning_rate=lr,
+                per_device_train_batch_size=batch_size,
+                per_device_eval_batch_size=batch_size,
+                num_train_epochs=epochs,
+                weight_decay=0.01,
+                save_total_limit=2,
+                logging_dir=f"./logs/{dataset_name}",
+                logging_strategy="epoch",
+                remove_unused_columns=False,
+                report_to="wandb",
+                local_rank=-1,
+            )
+
+            trainer = AdapterTrainer(
+                model=self.model,
+                args=training_args,
+                train_dataset=tokenized_data["train"],
+                eval_dataset=tokenized_data["dev"],
+                processing_class=self.tokenizer,
+                data_collator=self.data_collator,
+                compute_metrics=lambda pred: calculate_metrics(pred, self.id_to_label),
+            )
+
+            trainer.train()
+            trainer.evaluate()
+
+            # Speichern des Adapters und des Heads
+            self.model.save_adapter(os.path.join(self.base_adapter_dir, "adapters", adapter_name), adapter_name)
+            self.model.save_head(os.path.join(self.base_adapter_dir, "heads", adapter_name), adapter_name)
+
+            self.trained_adapters.append(adapter_name)
+            self.adapter_trainers[adapter_name] = trainer
+
+            eval_results = evaluate_model_on_testsets(
+                trainer=trainer,
+                adapter_name=adapter_name,
+                id_to_label=self.id_to_label,
+                tokenized_datasets=self.tokenized_datasets,
+                base_model_name=self.base_model_name,
+                adapter_config_name=config_name,
+                mapping_type=self.mapping_type,
+            )
+            self.results_summary.extend(eval_results)
+            run.finish()
+            self.model.set_active_adapters(None)
+
+        # Speichern der Ergebnisse
+        file_name = f"adapter_summary_{self.base_model_name}_{self.start_time}_{config_name}_{self.mapping_type}.csv"
         summarize_results(self.results_summary, file_name)
         print(self.model.adapter_summary())
 
-    def _train_with_adapter(self, dataset_name, tokenized_data):
-        """
-        Trainiert einen einzelnen Adapter auf einem Datensatz.
-        """
-        os.environ.pop("WANDB_RUN_ID", None)
-        os.environ.pop("WANDB_RESUME", None)
-
-        run_id = wandb.util.generate_id()
-        run = wandb.init(
-            project="Cross-Corpus-NER",
-            name=f"Train_{dataset_name}_{run_id}",
-            tags=[f"timestamp_{self.start_time}", dataset_name],
-            reinit=True,
-            resume=False,
-            id=run_id,
-        )
-
-        config_name = getattr(wandb.config, "adapter_config_name", None) or self.config.get("adapter_config_name", "houlsby")
-        adapter_config = self._build_adapter_config(config_name)
-
-        adapter_name = f"{dataset_name}_adapter"
-        self.model.add_adapter(adapter_name, config=adapter_config)
-        self.model.add_tagging_head(adapter_name, num_labels=len(self.id_to_label), id2label=self.id_to_label)
-        self.model.set_active_adapters(Stack(adapter_name))
-        self.model.train_adapter(adapter_name)
-
-        lr = getattr(wandb.config, "learning_rate", None) or self.config.get("learning_rate", 2e-4)
-        batch_size = getattr(wandb.config, "batch_size", None) or self.config.get("batch_size", 8)
-        epochs = getattr(wandb.config, "num_train_epochs", None) or self.config.get("num_train_epochs", 1)
-
-        training_args = TrainingArguments(
-            output_dir=os.path.join(self.base_adapter_dir, "results", dataset_name),
-            evaluation_strategy="epoch",
-            learning_rate=lr,
-            per_device_train_batch_size=batch_size,
-            per_device_eval_batch_size=batch_size,
-            num_train_epochs=epochs,
-            weight_decay=0.01,
-            save_total_limit=2,
-            logging_dir=f"./logs/{dataset_name}",
-            logging_strategy="epoch",
-            remove_unused_columns=False,
-            report_to="wandb",
-            local_rank=-1,
-        )
-
-        trainer = AdapterTrainer(
-            model=self.model,
-            args=training_args,
-            train_dataset=tokenized_data["train"],
-            eval_dataset=tokenized_data["dev"],
-            processing_class=self.tokenizer,
-            data_collator=self.data_collator,
-            compute_metrics=lambda pred: calculate_metrics(pred, self.id_to_label),
-        )
-
-        trainer.train()
-        trainer.evaluate()
-
-        # Speichern des Adapters und des Heads
-        self.model.save_adapter(os.path.join(self.base_adapter_dir, "adapters", adapter_name), adapter_name)
-        self.model.save_head(os.path.join(self.base_adapter_dir, "heads", adapter_name), adapter_name)
-
-        self.trained_adapters.append(adapter_name)
-        self.adapter_trainers[adapter_name] = trainer
-
-        eval_results = evaluate_model_on_testsets(
-            trainer=trainer,
-            adapter_name=adapter_name,
-            id_to_label=self.id_to_label,
-            tokenized_datasets=self.tokenized_datasets,
-            base_model_name=self.base_model_name,
-            adapter_config_name=config_name,
-            mapping_type=self.mapping_type,
-        )
-        self.results_summary.extend(eval_results)
-        run.finish()
-        self.model.set_active_adapters(None)
 
     def train_fusion_layer(self):
         """
@@ -256,7 +252,7 @@ class AdapterTrainerManager:
         )
 
         run.finish()
-        file_name = f"fusion_summary_{self.base_model_name}_{self.start_time}_{self.mapping_type}.csv"
+        file_name = f"fusion_summary_{self.base_model_name}_{self.start_time}_{config_name}_{self.mapping_type}.csv"
         summarize_results(fusion_summary, file_name)
         print(self.model.adapter_summary())
 
