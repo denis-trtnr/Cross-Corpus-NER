@@ -15,19 +15,38 @@ from config_utils import read_yaml_config
 
 
 class AdapterTrainerManager:
+    """
+    Verwaltet das Training von Adaptern (einzeln und fusioniert) auf Basis eines vorverarbeiteten Datasets.
+    
+    Alle für das Training notwendigen Komponenten (Modell, Tokenizer, Datasets etc.)
+    müssen beim Initialisieren übergeben werden
+    """ 
     def __init__(
         self,
         base_model_name,
         mapping_type,
         tokenized_datasets,
         tokenizer,
-        model,
         data_collator,
         id_to_label,
         config=None,
         data_dir="data",
         base_adapter_dir="/netscratch/dtrautner/studienarbeit/results",
     ):
+        """
+        Initialisiert das Adapter-Training mit vorbereiteten Komponenten.
+
+        Parameter:
+        - base_model_name (str): Name des Basismodells
+        - mapping_type (str): Mapping-Strategie (z.B. granular, broad)
+        - tokenized_datasets (dict): Tokenisierte Datensätze für Training, Validierung und Test
+        - tokenizer: Der verwendete Tokenizer
+        - data_collator: Der Data Collator für die Dataloader
+        - id_to_label (dict): Mapping von IDs zu Labels
+        - config (dict): Optional geladene YAML-Konfiguration
+        - data_dir (str): Datenverzeichnis
+        - base_adapter_dir (str): Basisverzeichnis zum Speichern von Adaptern, Logs etc.
+        """
         self.config = config or read_yaml_config()
         self.base_model_name = base_model_name
         self.mapping_type = mapping_type
@@ -35,9 +54,9 @@ class AdapterTrainerManager:
         self.base_adapter_dir = base_adapter_dir
         self.start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
+        self.model = AutoAdapterModel.from_pretrained(base_model_name)
         self.tokenized_datasets = tokenized_datasets
         self.tokenizer = tokenizer
-        self.model = model
         self.data_collator = data_collator
         self.id_to_label = id_to_label
 
@@ -47,6 +66,10 @@ class AdapterTrainerManager:
         self.results_summary = []
 
     def _build_adapter_config(self, config_name):
+        """
+        Erstellt eine AdapterConfig basierend auf dem Konfigurationsnamen.
+        Unterstützt 'custom', 'compacter' oder einen geladenen Adapter-Typ.
+        """
         if config_name.lower() == "custom":
             return SeqBnConfig(
                 mh_adapter=getattr(wandb.config, "mh_adapter", True),
@@ -65,6 +88,10 @@ class AdapterTrainerManager:
             return AdapterConfig.load(config_name)
 
     def train_all_adapters(self):
+        """
+        Führt das Training für alle verfügbaren Einzel-Datensätze durch.
+        Speichert die Adapter, ihre Heads und eine Übersicht der Ergebnisse.
+        """
         for dataset_name, tokenized_data in self.tokenized_datasets.items():
             print(f"Starte Finetuning für {dataset_name}...")
             self._train_with_adapter(dataset_name, tokenized_data)
@@ -74,6 +101,9 @@ class AdapterTrainerManager:
         print(self.model.adapter_summary())
 
     def _train_with_adapter(self, dataset_name, tokenized_data):
+        """
+        Trainiert einen einzelnen Adapter auf einem Datensatz.
+        """
         os.environ.pop("WANDB_RUN_ID", None)
         os.environ.pop("WANDB_RESUME", None)
 
@@ -129,6 +159,7 @@ class AdapterTrainerManager:
         trainer.train()
         trainer.evaluate()
 
+        # Speichern des Adapters und des Heads
         self.model.save_adapter(os.path.join(self.base_adapter_dir, "adapters", adapter_name), adapter_name)
         self.model.save_head(os.path.join(self.base_adapter_dir, "heads", adapter_name), adapter_name)
 
@@ -149,6 +180,9 @@ class AdapterTrainerManager:
         self.model.set_active_adapters(None)
 
     def train_fusion_layer(self):
+        """
+        Führt das Training eines Adapter-Fusion-Modells durch.
+        """
         print("\nTrainiere Fusion Layer...")
         adapter_setup = Fuse(*self.trained_adapters)
         self.model.add_tagging_head("head_fusion", num_labels=len(self.id_to_label), id2label=self.id_to_label)
@@ -175,6 +209,7 @@ class AdapterTrainerManager:
 
         config_name = getattr(wandb.config, "adapter_config_name", None) or self.config.get("adapter_config_name", "houlsby")
         
+        # Kombinierte Trainings- und Validierungsdaten der einzelnen Korpora
         cross_train = concatenate_datasets([self.tokenized_datasets[ds]["train"] for ds in self.tokenized_datasets])
         cross_eval = concatenate_datasets([self.tokenized_datasets[ds]["dev"] for ds in self.tokenized_datasets])
 
@@ -251,7 +286,6 @@ if __name__ == "__main__":
         config=global_config,
         tokenized_datasets=pre.get_tokenized_datasets(),
         tokenizer=pre.tokenizer,
-        model=pre.model,
         data_collator=pre.data_collator,
         id_to_label=pre.id_to_label,
     )
