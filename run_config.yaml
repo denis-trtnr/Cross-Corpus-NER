@@ -1,2 +1,9 @@
 mapping_type: granular # granular or broad
 model: microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext # dmis-lab/biobert-base-cased-v1.2 , google-bert/bert-base-uncased
+
+adapter_names:
+  - SETH_adapter
+  - Variome_adapter
+  - Variome120_adapter
+  - Amia_adapter
+  - TmVar_adapter
