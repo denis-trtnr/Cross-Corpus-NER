@@ -1,23 +1,36 @@
 method: bayes  # Can be 'grid', 'random', or 'bayes'
 metric:
-  name: eval/f1
+  name: test/f1
   goal: maximize
 
 parameters:
   learning_rate:
-    values: [2e-4, 3e-4]
+    values: [1e-4,3e-4,6e-4]
   batch_size:
-    values: [8]
+    values: [16]
   num_train_epochs:
-    values: [10]
+    values: [8] #8
   adapter_config_name:
-    values: [houlsby,pfeiffer,compacter,custom] # houlsby,pfeiffer,compacter,custom
+    values: [houlsby,pfeiffer,custom] # houlsby,pfeiffer,compacter,custom
   #Fusion Layer specific params
   num_train_epochs_fusion:
-    values: [7,10]
+    values: [8, 12, 15] #8, 12, 15
+  #Custom Config specific params
+  #non_linearity:
+  #  values: ["relu","gelu"]
+  #reduction_factor:
+  #  values: [8, 16]
+  #dropout:
+  #  values: [0.1, 0.15]
+  #init_weights:
+  #  values: ["bert"]
+  #residual_before_ln:
+  #  values: [True]
+  #mh_adapter:
+  #  values: [True, False]
 
 run_cap: 20
-program: train_adapters.py
+program: main.py
 
 command:
   - ${env}
