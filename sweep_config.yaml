@@ -5,11 +5,11 @@ metric:
 
 parameters:
   learning_rate:
-    values: [1e-4,3e-4,6e-4]
+    values: [1e-4, 4e-4, 7e-4]
   batch_size:
     values: [16]
   num_train_epochs:
-    values: [8] #8
+    values: [8]
   adapter_config_name:
     values: [houlsby,pfeiffer,custom] # houlsby,pfeiffer,compacter,custom
   #Fusion Layer specific params
