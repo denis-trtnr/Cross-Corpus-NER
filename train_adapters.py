@@ -14,7 +14,7 @@ from adapters.composition import Stack, Fuse
 # Importiere den DataPreprocessoraus dem Pre‑Processing-Modul.
 from data_preprocessing import DataPreprocessor
 # Importiere metrics utils aus dem Metrics-Modul.
-from metrics_utils import save_confusion_matrix_png, calculate_metrics, append_average_metrics, summarize_results
+from metrics_utils import save_confusion_matrix_png, calculate_metrics, append_average_metrics, summarize_results, evaluate_model_on_testsets
 from config_utils import load_config, read_yaml_config
 
 global_config = read_yaml_config()
@@ -158,6 +158,7 @@ def train_with_adapter(dataset_name, tokenized_data):
     adapter_trainers[adapter_name] = trainer
     print(model.adapter_summary())
 
+    """
     # Evaluation auf allen Test-Sets
     for test_dataset_name, dataset in tokenized_datasets.items():
         print(f"Evaluierung auf {test_dataset_name}-Testset ...")
@@ -198,7 +199,18 @@ def train_with_adapter(dataset_name, tokenized_data):
             "recall": overall_metrics["overall_recall"],
             "confusion_matrix": cm
         })
-    
+    """
+    evaluation_results = evaluate_model_on_testsets(
+        trainer=trainer,
+        adapter_name=adapter_name,
+        id_to_label=ID_TO_LABEL,
+        tokenized_datasets=tokenized_datasets,
+        base_model_name=base_model_name,
+        adapter_config_name=adapter_config_name,
+        mapping_type=mapping_type
+    )
+    results_summary.extend(evaluation_results)
+
     run.finish()
     model.set_active_adapters(None)
 
@@ -280,9 +292,11 @@ def train_fusion_layer():
     head_path = os.path.join(BASE_ADAPTER_DIR, "heads", "head_fusion")
     model.save_adapter_fusion(fusion_path, adapter_setup)
     model.save_head(head_path, "head_fusion")
-
+    
+    """
     fusion_summary = []
 
+    
     # Evaluation des fusionierten Modells
     for test_dataset_name, dataset in tokenized_datasets.items():
         print(f"Testen auf {test_dataset_name}-Testset mit Fusion-Modell ...")
@@ -316,7 +330,19 @@ def train_fusion_layer():
             "recall": overall_metrics["overall_recall"],
             "confusion_matrix": cm
         })
-    wandb.finish()
+    """
+
+    fusion_summary = evaluate_model_on_testsets(
+        trainer=fusion_trainer,
+        adapter_name="fusion",
+        id_to_label=ID_TO_LABEL,
+        tokenized_datasets=tokenized_datasets,
+        base_model_name=base_model_name,
+        adapter_config_name=adapter_config_name,
+        mapping_type=mapping_type,
+    )
+
+    run.finish()
 
     fusion_summary_file_name= f"fusion_summary_{base_model_name}_{START_TIME}_{adapter_config_name}_{mapping_type}.csv"
     summarize_results(fusion_summary, fusion_summary_file_name)
