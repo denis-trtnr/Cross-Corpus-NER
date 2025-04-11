@@ -38,7 +38,7 @@ def evaluate(mapping_type, base_model_name):
     adapter_manager.train_all_adapters()
     adapter_manager.train_fusion_layer()
 
-    """
+
     # Erstelle eine Instanz des AdapterCompositionEvaluator
     evaluator = AdapterCompositionEvaluator(
         base_model_name=base_model_name,
@@ -68,13 +68,12 @@ def evaluate(mapping_type, base_model_name):
 
     # Starte Baseline Training
     baseline_manager.train_all_models()
-    """
+
+    
     
 
 if __name__ == "__main__":
-    base_model_name = global_config.get(
-        "model", "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
-    )
+    base_model_name = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
     mapping_type = global_config.get("mapping_type", "granular")
 
     evaluate(mapping_type, base_model_name)

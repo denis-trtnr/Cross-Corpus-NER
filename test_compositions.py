@@ -168,10 +168,6 @@ class AdapterCompositionEvaluator:
             results = self.evaluate_composition(method, comp_obj)
             all_results.extend(results)
 
-
-        compositions_summary_file_name= f"compositions_summary_{self.base_model_name}_{self.start_time}.csv"
-        summarize_results(all_results, compositions_summary_file_name)
-
         # Deaktiviere die aktiven Adapter nach der Evaluation
         self.model.set_active_adapters(None)
 
