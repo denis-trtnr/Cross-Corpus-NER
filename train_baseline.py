@@ -140,6 +140,7 @@ if __name__ == "__main__":
         base_model_name=base_model_name,
         mapping_type=mapping_type,
         config=global_config,
+        model_config=pre.config,
         tokenized_datasets=pre.get_tokenized_datasets(),
         tokenizer=pre.tokenizer,
         data_collator=pre.data_collator,
@@ -148,3 +149,29 @@ if __name__ == "__main__":
 
     # Starte Training
     manager.train_all_models()
+
+
+
+    base_model_name2 = "bert-base-uncased"
+    mapping_type2 = "granular"
+
+    # Erstelle Preprocessor
+    pre2 = DataPreprocessor(
+        mapping_type=mapping_type2,
+        base_model=base_model_name2,
+    )
+
+    # Erstelle eine Instanz des AdapterTrainerManagers
+    manager2 = BaselineTrainerManager(
+        base_model_name=base_model_name2,
+        mapping_type=mapping_type2,
+        config=global_config,
+        model_config=pre2.config,
+        tokenized_datasets=pre2.get_tokenized_datasets(),
+        tokenizer=pre2.tokenizer,
+        data_collator=pre2.data_collator,
+        id_to_label=pre2.id_to_label,
+    )
+
+    # Starte Training
+    manager2.train_all_models()
