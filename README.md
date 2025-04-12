@@ -1,8 +1,8 @@
 # Cross-Corpus Named Entity Recognition
 
-Welcome to the **Cross-Corpus-NER** project! This repository contains the code and configurations used for a study thesis exploring the generalization capabilities of NER models in the biomedical domain by using Adapter-based architectures for transfer learning
+Welcome to the **Cross-Corpus-NER** project! This repository contains the code and configurations used for a [study thesis](docs/thsis.pdf) exploring the generalization capabilities of NER models in the biomedical domain by using Adapter-based architectures for transfer learning
 
-> 📚 **This work was conducted as part of a study in collaboration with the [DFKI Speech & Technology Lab](https://www.dfki.de/en/web/research/research-departments/speech-and-language-technology)**
+> 📚 **This work was conducted as part of a study in collaboration with the [DFKI Speech & Language Technology Lab](https://www.dfki.de/en/web/research/research-departments/speech-and-language-technology)**
 
 
 
