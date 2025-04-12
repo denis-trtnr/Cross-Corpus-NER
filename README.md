@@ -1,4 +1,4 @@
-# Cross-Corpus Named Entity Recognition (NER)
+# Cross-Corpus Named Entity Recognition
 
 Welcome to the **Cross-Corpus-NER** project! This repository contains the code and configurations used for a study thesis exploring the generalization capabilities of NER models in the biomedical domain by using Adapter-based architectures for transfer learning
 
@@ -70,7 +70,7 @@ bash /home/dtrautner/dev/pegasus-bridle/wrapper.sh wandb agent denistrautner-dhb
 or without w&b:
 
 ```bash
-wandb bash /home/dtrautner/dev/pegasus-bridle/wrapper.sh python src/train_baseline.py
+wandb bash /home/dtrautner/dev/pegasus-bridle/wrapper.sh python src/main.py
 ```
 
 
