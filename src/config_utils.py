@@ -3,7 +3,10 @@ import wandb
 import yaml
 import warnings
 
-def read_yaml_config(file_path="run_config.yaml"):
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FILE_PATH = os.path.join(BASE_DIR, "..", "config", "run_config.yaml")
+
+def read_yaml_config(file_path=FILE_PATH):
     """
     Liest die Konfiguration aus der YAML-Datei und gibt diese als Dictionary zurück.
     Falls die Datei nicht existiert, wird eine Warnung ausgegeben und ein leeres Dictionary
@@ -43,7 +46,7 @@ def load_config():
     for key in ["WANDB_SWEEP_ID", "WANDB_RUN_ID", "WANDB_RESUME"]:
         os.environ.pop(key, None)
 
-def save_config_to_yaml(config, filename="run_config.yaml"):
+def save_config_to_yaml(config, filename=FILE_PATH):
     """
     Speichert die übergebene Konfiguration in eine YAML-Datei.
     Falls die Konfiguration leer ist, wird eine Warnmeldung ausgegeben,

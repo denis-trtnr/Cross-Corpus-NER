@@ -68,7 +68,7 @@ def evaluate(mapping_type, base_model_name):
 
     # Starte Baseline Training
     baseline_manager.train_all_models()
-
+    
     
     
 

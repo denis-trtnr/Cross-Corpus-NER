@@ -1,19 +1,9 @@
-# data_preprocessing.py
-
 import os
-import wandb
 import random
-import warnings
-from datetime import datetime
 from typing import List, Tuple
-from collections import Counter
 
 import requests
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from datasets import Dataset, concatenate_datasets
+from datasets import Dataset
 from transformers import (
     AutoTokenizer, 
     AutoConfig,
@@ -26,6 +16,8 @@ from mapping_utils import (
 )
 from adapters import AutoAdapterModel
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class DataPreprocessor:
     def __init__(self, 
                  mapping_type: str = "granular", 
@@ -34,7 +26,7 @@ class DataPreprocessor:
         
         self.mapping_type = mapping_type
         self.base_model = base_model
-        self.data_dir = data_dir
+        self.data_dir = os.path.abspath(os.path.join(BASE_DIR, "..", data_dir))
 
         # Setze die globalen Label-Variablen in der Instanz
         if self.mapping_type == "granular":

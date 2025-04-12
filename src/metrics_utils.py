@@ -7,6 +7,9 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix
 from tabulate import tabulate
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RESULTS_DIR = os.path.join(BASE_DIR, "..", "results")
+VISUALIZATION_DIR = os.path.join(BASE_DIR, "..", "visualizations")
 
 # Load the seqeval metric once
 metric = evaluate.load("seqeval")
@@ -127,7 +130,7 @@ def append_average_metrics(results_summary):
     results_summary.append(avg_entry)
     return results_summary
 
-def summarize_results(results_summary, filename, output_folder="results"):
+def summarize_results(results_summary, filename, output_folder=RESULTS_DIR):
     """Fasst die Evaluationsergebnisse zusammen und gibt eine Tabelle aus."""
     df = pd.DataFrame(append_average_metrics(results_summary))
     print("\nZusammenfassung der Ergebnisse:")
@@ -145,7 +148,7 @@ def summarize_results(results_summary, filename, output_folder="results"):
     print(f"\nErgebnisse wurden in '{output_path}' gespeichert.")
 
 
-def save_confusion_matrix_png(cm, relevant_classes, filename, title="Confusion Matrix", folder="visualizations"):
+def save_confusion_matrix_png(cm, relevant_classes, filename, title="Confusion Matrix", folder=VISUALIZATION_DIR):
     """
     Erstellt eine Heatmap aus einer Konfusionsmatrix und speichert diese als PNG-Datei.
     
