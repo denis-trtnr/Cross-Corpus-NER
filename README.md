@@ -41,6 +41,7 @@ The following mutation datasets were used for training and cross-corpus evaluati
 -  [**AMIA**](https://github.com/ibm-aur-nlp/amia-18-mutation-corpus) by Jimeno et al. (2018)
 -  [**TmVar**](https://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/tmTools/tmVar.html) by Wei et al. (2013)
 
+🙏 **Special thanks to [mutationCorpora](https://github.com/Erechtheus/mutationCorpora)** for collecting and harmonizing these corpora!
 
 ## ⚠️ Environment-Specific Notes
 
