@@ -1,6 +1,6 @@
 # Cross-Corpus Named Entity Recognition
 
-Welcome to the **Cross-Corpus-NER** project! This repository contains the code and configurations used for a [study thesis](docs/thsis.pdf) exploring the generalization capabilities of NER models in the biomedical domain by using Adapter-based architectures for transfer learning
+Welcome to the **Cross-Corpus-NER** project! This repository contains the code and configurations used for a [study thesis](docs/thesis.pdf) exploring the generalization capabilities of NER models in the biomedical domain by using Adapter-based architectures for transfer learning
 
 > 📚 **This work was conducted as part of a study in collaboration with the [DFKI Speech & Language Technology Lab](https://www.dfki.de/en/web/research/research-departments/speech-and-language-technology)**
 
@@ -47,8 +47,8 @@ The following mutation datasets were used for training and cross-corpus evaluati
 
 This repository contains code components that are specific to the infrastructure used during development:
 
-- ✅ [W&B](https://wandb.ai) for experiment tracking and automated sweeps
-- 🛰️ [Pegasus](https://pegasus.dfki.de/) Cluster-specific scripts (e.g., SLURM configs, paths)
+- ⚖️ [W&B](https://wandb.ai) for experiment tracking and automated hyperparamter tuning
+- 🦄 [Pegasus](https://pegasus.dfki.de/) Cluster-specific scripts (e.g., SLURM configs, paths)
 
 If you're running this outside the original setup, you may need to:
 
